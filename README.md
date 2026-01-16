@@ -16,7 +16,7 @@ Avant de mesurer les propriétés de l'algorithme, présentons comment utiliser 
 ```
 Vishash is a program that computes an easily recognizable png image using only the data of any a given file, such that any change in the file produces a completely different image. The image is only depending from the file and the given parameters.
 Thanks to its properties, Vishash can help to easily check if two files are the same.
-Usage : bin/vishash filename
+Usage : vishash filename
 
 Optional parameters:
  -s | --size   : With parameter size enabled, the image is a square. size corresponds to the length of one side of the image in pixels. (default: 128)
