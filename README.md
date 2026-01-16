@@ -9,7 +9,26 @@ Vishash est une fonction de hachage de fichier, c'est-à-dire une fonction perme
 
 Ces avantages seraient encore plus intéressants s'il s'avérait que Vishash possédait les propriétés d'une fonction de hash cryptographique comme décrit plus haut.
 
-Avant de mesurer les propriétés de l'algorithme, présentons en détail son fonctionnement
+Avant de mesurer les propriétés de l'algorithme, présentons comment utiliser l'exécutable `vishash`, ainsi que le fonctionnement de l'algorithme.
+
+## Utilisation
+
+```
+Vishash is a program that computes an easily recognizable png image using only the data of any a given file, such that any change in the file produces a completely different image. The image is only depending from the file and the given parameters.
+Thanks to its properties, Vishash can help to easily check if two files are the same.
+Usage : bin/vishash filename
+
+Optional parameters:
+ -s | --size   : With parameter size enabled, the image is a square. size corresponds to the length of one side of the image in pixels. (default: 128)
+ -w | --width  : Width of the image in pixels. (default: 128)
+ -h | --height : Height of the image in pixels. (default: 128)
+ -K            : K is a constant representing the level of details of the image. 50 is no details and 300 is too much details. (default: 125)
+ -j | --jobs   : The maximal number of cores to use during calculation (default: 4)
+ -l | --logs   : Display logs
+ -h | --help   : Displays this help
+```
+
+
 
 ## Fonctionnement général
 
