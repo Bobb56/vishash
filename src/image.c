@@ -1,13 +1,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <png.h>
-#include <math.h>
 #include <pthread.h>
 #include "image.h"
+#include "fptc.h"
 #include "random.h"
 #include "vishash.h"
 
-#define kernel_size(sigma)   ((int)(3*sigma)+1)
+#define kernel_size(sigma)   fpt2i(fpt_add(fpt_mul(FPT_THREE, sigma), FPT_ONE))
 
 
 long int get_size(FILE* file) {
@@ -51,9 +51,9 @@ FloatImage create_empty_float_image(int width, int height) {
 IntImage floatimage_to_intimage(FloatImage fimg) {
     IntImage img = create_empty_int_image(fimg.width, fimg.height);
     for (int i=0 ; i < fimg.width * fimg.height ; i++) {
-        img.colors[i].r = (uint8_t)fimg.colors[i].r;
-        img.colors[i].g = (uint8_t)fimg.colors[i].g;
-        img.colors[i].b = (uint8_t)fimg.colors[i].b;
+        img.colors[i].r = (uint8_t)fpt2i(fimg.colors[i].r);
+        img.colors[i].g = (uint8_t)fpt2i(fimg.colors[i].g);
+        img.colors[i].b = (uint8_t)fpt2i(fimg.colors[i].b);
     }
     return img;
 }
@@ -61,9 +61,9 @@ IntImage floatimage_to_intimage(FloatImage fimg) {
 FloatImage intimage_to_floatimage(IntImage img) {
     FloatImage fimg = create_empty_float_image(img.width, img.height);
     for (int i=0 ; i < img.width * img.height ; i++) {
-        fimg.colors[i].r = (uint8_t)img.colors[i].r;
-        fimg.colors[i].g = (uint8_t)img.colors[i].g;
-        fimg.colors[i].b = (uint8_t)img.colors[i].b;
+        fimg.colors[i].r = i2fpt(img.colors[i].r);
+        fimg.colors[i].g = i2fpt(img.colors[i].g);
+        fimg.colors[i].b = i2fpt(img.colors[i].b);
     }
     return fimg;
 }
@@ -181,23 +181,23 @@ int save_png(const char* filename, IntImage img) {
 
 
 
-double* gaussian_kernel_1d(int radius, double sigma) {
+fpt* gaussian_kernel_1d(int radius, fpt sigma) {
     int size = 2 * radius + 1;
-    double* k = malloc(sizeof(double) * size);
+    fpt* k = malloc(sizeof(fpt) * size);
     if (!k) return NULL;
 
-    double sum = 0.0f;
-    double inv_2sigma2 = 1.0f / (2.0f * sigma * sigma);
+    fpt sum = FPT_ZERO;
+    fpt inv_2sigma2 = fpt_div(FPT_ONE, (fpt_mul(FPT_TWO, fpt_mul(sigma, sigma))));
 
     for (int i = -radius; i <= radius; i++) {
-        double v = expf(- (i * i) * inv_2sigma2);
+        fpt v = fpt_exp(fpt_mul(fpt_mul(FPT_MINUS_ONE, fpt_mul(i, i)), inv_2sigma2));
         k[i + radius] = v;
-        sum += v;
+        sum = fpt_add(sum, v);
     }
 
     // normalisation
     for (int i = 0; i < size; i++) {
-        k[i] /= sum;
+        k[i] = fpt_div(k[i], sum);
     }
 
     return k;
@@ -217,7 +217,7 @@ void* partial_blur(void* args) {
     struct partial_blur_param_s* params = args;
     FloatImage* src = params->src;
     FloatImage* dst = params->dst;
-    double* kernel = params->kernel;
+    fpt* kernel = params->kernel;
     int radius = params->radius;
     int ymin = params->ymin;
     int ymax = params->ymax;
@@ -230,16 +230,16 @@ void* partial_blur(void* args) {
     /* -------- passe verticale -------- */
     for (int y = ymin; y < ymax; y++) {
         for (int x = 0; x < w; x++) {
-            double r = 0, g = 0, b = 0;
+            fpt r = 0, g = 0, b = 0;
 
             for (int k = -radius; k <= radius; k++) {
                 int yy = clamp(y + k, 0, h-1);
                 FloatPixel p = src->colors[yy * w + x];
-                double wgt = kernel[k + radius];
+                fpt wgt = kernel[k + radius];
 
-                r += wgt * p.r;
-                g += wgt * p.g;
-                b += wgt * p.b;
+                r = fpt_add(r, fpt_mul(wgt, p.r));
+                g = fpt_add(g, fpt_mul(wgt, p.g));
+                b = fpt_add(r, fpt_mul(wgt, p.b));
             }
 
             FloatPixel* dst_pix = &tmp[y * w + x];
@@ -252,16 +252,16 @@ void* partial_blur(void* args) {
     /* -------- passe horizontale -------- */
     for (int y = ymin; y < ymax ; y++) {
         for (int x = 0; x < w; x++) {
-            double r = 0, g = 0, b = 0;
+            fpt r = 0, g = 0, b = 0;
 
             for (int k = -radius; k <= radius; k++) {
                 int xx = clamp(x + k, 0, w - 1);
                 FloatPixel p = tmp[y * w + xx];
-                double wgt = kernel[k + radius];
+                fpt wgt = kernel[k + radius];
 
-                r += wgt * p.r;
-                g += wgt * p.g;
-                b += wgt * p.b;
+                r = fpt_add(r, fpt_mul(wgt, p.r));
+                g = fpt_add(g, fpt_mul(wgt, p.g));
+                b = fpt_add(r, fpt_mul(wgt, p.b));
             }
 
             FloatPixel* dst_pix = &dst->colors[y * w + x];
@@ -278,12 +278,12 @@ void* partial_blur(void* args) {
 
 
 
-FloatImage gaussian_blur(FloatImage src, int kernel_size, double sigma, int njobs) {
+FloatImage gaussian_blur(FloatImage src, int kernel_size, fpt sigma, int njobs) {
     /* Noyau de largeur impaire */
     int radius = kernel_size/2;
 
     FloatImage dst = create_empty_float_image(src.width, src.height);
-    double* kernel = gaussian_kernel_1d(radius, sigma);
+    fpt* kernel = gaussian_kernel_1d(radius, sigma);
     
     /* Application du flou */
 
@@ -313,13 +313,13 @@ FloatImage gaussian_blur(FloatImage src, int kernel_size, double sigma, int njob
     return dst;
 }
 
-void extend_image(FloatImage img, double factor) {
+void extend_image(FloatImage img, fpt factor) {
     for (int x = 0 ; x < img.width ; x++) {
         for (int y = 0 ; y < img.height ; y++) {
             FloatPixel* p = &img.colors[y * img.width + x];
-            p->r = (double)(uint8_t)(p->r * factor);
-            p->g = (double)(uint8_t)(p->g * factor);
-            p->b = (double)(uint8_t)(p->b * factor);
+            p->r = i2fpt(fpt2i(fpt_mul(p->r, factor)) % 256);
+            p->g = i2fpt(fpt2i(fpt_mul(p->g, factor)) % 256);
+            p->b = i2fpt(fpt2i(fpt_mul(p->b, factor)) % 256);
         }
     }
 }
@@ -327,9 +327,10 @@ void extend_image(FloatImage img, double factor) {
 void remove_zero(FloatImage img) {
     for (int x = 0 ; x < img.width ; x++) {
         for (int y = 0 ; y < img.height ; y++) {
-            img.colors[y * img.width + x].r += !img.colors[y * img.width + x].r;
-            img.colors[y * img.width + x].g += !img.colors[y * img.width + x].g;
-            img.colors[y * img.width + x].b += !img.colors[y * img.width + x].b;
+            for (int color = 0 ; color < 3 ; color++) {
+                fpt* color_ptr = &img.colors[y * img.width + x].array[color];
+                *color_ptr = (*color_ptr == FPT_ZERO) ? FPT_ONE : *color_ptr;
+            }
         }
     }
 }
@@ -341,14 +342,14 @@ void make_iterations(FloatImage* img, int taille, int K, int n, int njobs, bool 
     for (int i = 1 ; i < n ; i++) {
         debug_log(verbose, "Iteration %d/%d\n", i, n-1);
 
-        double sigma = (double)(i*taille)/(double)K;
+        fpt sigma = fpt_div(i2fpt(i*taille), i2fpt(K));
         size = kernel_size(sigma);
         debug("Starting gaussian blur, kernel_size=%d, sigma=%lf\n", size, sigma);
         tmp = gaussian_blur(*img, size, sigma, njobs);
 
         affect_image(img, tmp);
         debug("Extension de l'image\n");
-        extend_image(*img, (2 + 5*(double)(n-i)/(double)n));
+        extend_image(*img, fpt_add(FPT_TWO, fpt_mul(FPT_FIVE, fpt_div(i2fpt(n-i), i2fpt(n)))));
         //remove_zero(*img); // pas forcément nécessaire
     }
 }

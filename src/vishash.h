@@ -1,6 +1,10 @@
 #ifndef VISHASH_H
 #define VISHASH_H
 
+#define FPT_BITS    64
+#define FPT_WBITS   16
+#include "fptc.h"
+
 //#define DEBUG
 
 #ifdef DEBUG
