@@ -190,7 +190,7 @@ fpt* gaussian_kernel_1d(int radius, fpt sigma) {
     fpt inv_2sigma2 = fpt_div(FPT_ONE, (fpt_mul(FPT_TWO, fpt_mul(sigma, sigma))));
 
     for (int i = -radius; i <= radius; i++) {
-        fpt v = fpt_exp(fpt_mul(fpt_mul(FPT_MINUS_ONE, fpt_mul(i, i)), inv_2sigma2));
+        fpt v = FPT_ONE; //fpt_exp(fpt_mul(fpt_mul(FPT_MINUS_ONE, fpt_mul(i, i)), inv_2sigma2));
         k[i + radius] = v;
         sum = fpt_add(sum, v);
     }
@@ -239,7 +239,7 @@ void* partial_blur(void* args) {
 
                 r = fpt_add(r, fpt_mul(wgt, p.r));
                 g = fpt_add(g, fpt_mul(wgt, p.g));
-                b = fpt_add(r, fpt_mul(wgt, p.b));
+                b = fpt_add(b, fpt_mul(wgt, p.b));
             }
 
             FloatPixel* dst_pix = &tmp[y * w + x];
@@ -261,7 +261,7 @@ void* partial_blur(void* args) {
 
                 r = fpt_add(r, fpt_mul(wgt, p.r));
                 g = fpt_add(g, fpt_mul(wgt, p.g));
-                b = fpt_add(r, fpt_mul(wgt, p.b));
+                b = fpt_add(b, fpt_mul(wgt, p.b));
             }
 
             FloatPixel* dst_pix = &dst->colors[y * w + x];
